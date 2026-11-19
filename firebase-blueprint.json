@@ -1,0 +1,262 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Private user profile for authenticated Google accounts (PII isolated).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name from Google profile.",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address (private PII).",
+          "maxLength": 254
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar URL.",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when user first signed in."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest profile update."
+        }
+      },
+      "required": ["uid", "displayName", "email", "photoURL", "createdAt", "updatedAt"]
+    },
+    "StoreStats": {
+      "title": "StoreStats",
+      "description": "Aggregate public store statistics document.",
+      "type": "object",
+      "properties": {
+        "registeredUsersCount": {
+          "type": "integer",
+          "description": "Total number of registered users in the store."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when stats were last updated."
+        }
+      },
+      "required": ["registeredUsersCount", "updatedAt"]
+    },
+    "AppEntry": {
+      "title": "AppEntry",
+      "description": "A published Android APK application in the public store.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique document identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "App display name (optional user override or auto-extracted from APK).",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional app description.",
+          "maxLength": 2000
+        },
+        "iconDataUrl": {
+          "type": "string",
+          "description": "Automatically extracted APK icon encoded as data URL.",
+          "minLength": 1,
+          "maxLength": 250000
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Server file identifier for downloading the untouched original APK.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Exact original APK filename preserved for bit-for-bit download.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "fileSize": {
+          "type": "integer",
+          "description": "Exact APK file size in bytes."
+        },
+        "fileSha256": {
+          "type": "string",
+          "description": "SHA-256 checksum proving byte-for-byte original file integrity.",
+          "maxLength": 64
+        },
+        "packageName": {
+          "type": "string",
+          "description": "Android package name extracted from APK manifest.",
+          "maxLength": 180
+        },
+        "versionName": {
+          "type": "string",
+          "description": "Version name extracted from APK manifest.",
+          "maxLength": 60
+        },
+        "downloadsCount": {
+          "type": "integer",
+          "description": "Cumulative download count."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["published"],
+          "description": "Publication status of the application."
+        },
+        "uploaderId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the publisher.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploaderName": {
+          "type": "string",
+          "description": "Public display name of the publisher.",
+          "maxLength": 120
+        },
+        "uploaderPhoto": {
+          "type": "string",
+          "description": "Public avatar URL of the publisher.",
+          "maxLength": 1000
+        },
+        "screenshotCount": {
+          "type": "integer",
+          "description": "Number of optional screenshots attached (0 to 4)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of publication."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "iconDataUrl",
+        "fileId",
+        "fileName",
+        "fileSize",
+        "packageName",
+        "versionName",
+        "downloadsCount",
+        "status",
+        "uploaderId",
+        "uploaderName",
+        "uploaderPhoto",
+        "screenshotCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AppScreenshot": {
+      "title": "AppScreenshot",
+      "description": "Optional compressed screenshot belonging to a published app.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Screenshot document identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "appId": {
+          "type": "string",
+          "description": "Parent application document identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploaderId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the publisher.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "imageDataUrl": {
+          "type": "string",
+          "description": "Compressed screenshot data URL.",
+          "minLength": 1,
+          "maxLength": 450000
+        },
+        "order": {
+          "type": "integer",
+          "description": "Zero-based display order (0 to 3)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["published"],
+          "description": "Publication status mirroring parent app."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of upload."
+        }
+      },
+      "required": ["id", "appId", "uploaderId", "imageDataUrl", "order", "status", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Server-managed administrator role marker document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        }
+      },
+      "required": ["uid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Private authenticated user profiles containing email PII, readable only by the owner or admin."
+    },
+    "/storeStats/{statId}": {
+      "schema": { "$ref": "#/entities/StoreStats" },
+      "description": "Public aggregate store counters (document id: summary), updated atomically upon first user registration."
+    },
+    "/apps/{appId}": {
+      "schema": { "$ref": "#/entities/AppEntry" },
+      "description": "Publicly browsable published APK catalog entries created by verified users."
+    },
+    "/apps/{appId}/screenshots/{screenshotId}": {
+      "schema": { "$ref": "#/entities/AppScreenshot" },
+      "description": "Optional screenshots subcollection for each published app."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Restricted admin lookup collection."
+    }
+  }
+}

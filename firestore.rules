@@ -1,0 +1,235 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================
+    // Global Hardened Primitives
+    // =========================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'amrfarkha751@gmail.com'
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // =========================================================
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // =========================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.email is string && data.email.size() <= 254
+        && data.photoURL is string && data.photoURL.size() <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStoreStats(data) {
+      return data.keys().hasAll(['registeredUsersCount', 'updatedAt'])
+        && data.keys().hasOnly(['registeredUsersCount', 'updatedAt'])
+        && data.registeredUsersCount is int
+        && data.registeredUsersCount >= 0
+        && data.registeredUsersCount <= 10000000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidApp(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'description', 'iconDataUrl', 'fileId', 'fileName',
+          'fileSize', 'packageName', 'versionName', 'downloadsCount', 'status',
+          'uploaderId', 'uploaderName', 'uploaderPhoto', 'screenshotCount',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'name', 'description', 'iconDataUrl', 'fileId', 'fileName',
+          'fileSize', 'fileSha256', 'packageName', 'versionName', 'downloadsCount',
+          'status', 'uploaderId', 'uploaderName', 'uploaderPhoto', 'screenshotCount',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.description is string && data.description.size() <= 2000
+        && data.iconDataUrl is string && data.iconDataUrl.size() >= 1 && data.iconDataUrl.size() <= 250000
+        && isValidId(data.fileId)
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200
+        && data.fileSize is int && data.fileSize >= 1 && data.fileSize <= 524288000
+        && (!('fileSha256' in data) || (data.fileSha256 is string && data.fileSha256.size() <= 64))
+        && data.packageName is string && data.packageName.size() <= 180
+        && data.versionName is string && data.versionName.size() <= 60
+        && data.downloadsCount is int && data.downloadsCount >= 0 && data.downloadsCount <= 100000000
+        && data.status is string && data.status == 'published'
+        && isValidId(data.uploaderId)
+        && data.uploaderName is string && data.uploaderName.size() <= 120
+        && data.uploaderPhoto is string && data.uploaderPhoto.size() <= 1000
+        && data.screenshotCount is int && data.screenshotCount >= 0 && data.screenshotCount <= 4
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScreenshot(data) {
+      return data.keys().hasAll(['id', 'appId', 'uploaderId', 'imageDataUrl', 'order', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'appId', 'uploaderId', 'imageDataUrl', 'order', 'status', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.appId)
+        && isValidId(data.uploaderId)
+        && data.uploaderId == request.auth.uid
+        && data.imageDataUrl is string && data.imageDataUrl.size() >= 1 && data.imageDataUrl.size() <= 450000
+        && data.order is int && data.order >= 0 && data.order <= 3
+        && data.status is string && data.status == 'published'
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================
+    // Collection Rules
+    // =========================================================
+
+    match /admins/{adminId} {
+      allow read, write: if false;
+    }
+
+    // Private User Profiles (PII Isolated)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUser(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && request.auth.uid == userId
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Public Store Statistics (Atomic user registration counter)
+    match /storeStats/{statId} {
+      allow get: if statId == 'summary';
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && statId == 'summary'
+        && isValidStoreStats(incoming())
+        && incoming().registeredUsersCount == 1
+        && incoming().updatedAt == request.time
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isVerifiedUser()
+        && statId == 'summary'
+        && isValidStoreStats(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['registeredUsersCount', 'updatedAt'])
+        && incoming().registeredUsersCount == existing().registeredUsersCount + 1
+        && !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow delete: if false;
+    }
+
+    // Published APK Applications (Public Store Catalog)
+    match /apps/{appId} {
+      allow get: if isValidId(appId) && existing().status == 'published';
+      allow list: if existing().status == 'published';
+      allow create: if isVerifiedUser()
+        && isValidId(appId)
+        && isValidApp(incoming())
+        && incoming().id == appId
+        && incoming().uploaderId == request.auth.uid
+        && incoming().downloadsCount == 0
+        && incoming().status == 'published'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isVerifiedUser()
+        && isValidId(appId)
+        && isValidApp(incoming())
+        && incoming().id == existing().id
+        && incoming().uploaderId == existing().uploaderId
+        && incoming().status == existing().status
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          // Action 1: Owner edits app info, screenshots count, or uploads an updated APK without deleting
+          (
+            existing().uploaderId == request.auth.uid
+            && incoming().downloadsCount == existing().downloadsCount
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'description', 'screenshotCount',
+              'fileId', 'fileName', 'fileSize', 'fileSha256',
+              'iconDataUrl', 'packageName', 'versionName', 'updatedAt'
+            ])
+          ) ||
+          // Action 2: Increment download counter by +1
+          (
+            incoming().downloadsCount == existing().downloadsCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['downloadsCount', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerifiedUser()
+        && isValidId(appId)
+        && (existing().uploaderId == request.auth.uid || isAdmin());
+
+      // Optional App Screenshots Subcollection
+      match /screenshots/{screenshotId} {
+        allow get: if isValidId(appId) && isValidId(screenshotId) && existing().status == 'published';
+        allow list: if existing().status == 'published';
+        allow create: if isVerifiedUser()
+          && isValidId(appId)
+          && isValidId(screenshotId)
+          && isValidScreenshot(incoming())
+          && incoming().id == screenshotId
+          && incoming().appId == appId
+          && incoming().uploaderId == request.auth.uid
+          && incoming().status == 'published'
+          && incoming().createdAt == request.time
+          && getAfter(/databases/$(database)/documents/apps/$(appId)).data.uploaderId == request.auth.uid;
+        allow update: if false;
+        allow delete: if isVerifiedUser()
+          && isValidId(appId)
+          && isValidId(screenshotId)
+          && (
+            existing().uploaderId == request.auth.uid ||
+            isAdmin()
+          );
+      }
+    }
+  }
+}

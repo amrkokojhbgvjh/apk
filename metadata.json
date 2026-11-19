@@ -1,0 +1,6 @@
+{
+  "name": "APK Store - متجر تطبيقات أندرويد",
+  "description": "متجر تطبيقات أندرويد لرفع ونشر وتحميل ملفات APK مع استخراج تلقائي لأيقونة وبيانات التطبيق.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
